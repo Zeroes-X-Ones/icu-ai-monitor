@@ -156,8 +156,8 @@ export default function AIInsightPanel({ metric }) {
       setLoading(true);
       try {
         const url = metric
-          ? `http://localhost:8000/api/v1/analysis/?window=${timeWindow}&metric=${metric}`
-          : `http://localhost:8000/api/v1/analysis/?window=${timeWindow}`;
+          ? `https://icu-ai-monitor-d6z0.onrender.com`
+          : `https://icu-ai-monitor-d6z0.onrender.com`;
         const res = await fetch(url);
         const data = await res.json();
         setAnalysis(data);
