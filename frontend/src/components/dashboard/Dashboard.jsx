@@ -14,7 +14,7 @@ export default function Dashboard() {
     fetch(`https://icu-ai-monitor-d6z0.onrender.com/api/v1/vitals/history?minutes=${timeWindow}`)
       .then(res => res.json())
       .then(d => {
-        setHistory(d.reverse());
+        setHistory((d.history || []).reverse());
         setLoadingHistory(false);
       })
       .catch(err => {
