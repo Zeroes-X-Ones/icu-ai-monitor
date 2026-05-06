@@ -44,9 +44,7 @@ export const API = {
   },
 
   createWebSocket(onMessage, onError) {
-    const ws = new WebSocket(
-      `${WS_URL}/api/v1/ws`
-    );
+    const ws = new WebSocket(`${WS_URL}/api/v1/ws/stream`);
 
     ws.onmessage = (event) => {
       try {
