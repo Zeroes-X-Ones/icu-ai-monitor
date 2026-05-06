@@ -282,7 +282,7 @@ export default function HistoryView() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {processedData.map((row) => {
+                {(Array.isArray(processedData) ? processedData : []).map((row)  => {
                   const isExpanded = expandedRows.has(row.id);
                   const isAbnormalRow = row.alert_level === 'CRITICAL' || row.alert_level === 'WARNING';
                   return (
