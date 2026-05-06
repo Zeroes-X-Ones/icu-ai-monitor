@@ -7,7 +7,7 @@ export default function Dashboard() {
   const [history, setHistory] = useState([]);
   const [timeWindow, setTimeWindow] = useState(15);
   const [loadingHistory, setLoadingHistory] = useState(false);
-  const { data, isConnected, latestVital } = useVitalsStream('wss://icu-ai-monitor-d6z0.onrender.com', history);
+  const { data, isConnected, latestVital } =useVitalsStream('wss://icu-ai-monitor-d6z0.onrender.com/api/v1/ws/stream',history);
   
   useEffect(() => {
     setLoadingHistory(true);
