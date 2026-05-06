@@ -7,11 +7,11 @@ export default function Dashboard() {
   const [history, setHistory] = useState([]);
   const [timeWindow, setTimeWindow] = useState(15);
   const [loadingHistory, setLoadingHistory] = useState(false);
-  const { data, isConnected, latestVital } = useVitalsStream('ws://localhost:8000/api/v1/ws/stream', history);
+  const { data, isConnected, latestVital } = useVitalsStream('wss://icu-ai-monitor-d6z0.onrender.com', history);
   
   useEffect(() => {
     setLoadingHistory(true);
-    fetch(`http://localhost:8000/api/v1/vitals/?minutes=${timeWindow}`)
+    fetch(`https://icu-ai-monitor-d6z0.onrender.com/api/v1/vitals/history?minutes=${timeWindow}`)
       .then(res => res.json())
       .then(d => {
         setHistory(d.reverse());
