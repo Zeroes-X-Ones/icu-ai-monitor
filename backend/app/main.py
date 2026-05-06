@@ -1,5 +1,4 @@
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1 import vitals, analysis, websockets
 from app.core.database import engine, Base, SessionLocal
 from app.core.config import settings
@@ -11,6 +10,15 @@ from app.services.vitals_service import VitalsService
 from app.api.v1.websockets import ws_manager
 import json
 from datetime import datetime, timedelta, timezone
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
