@@ -1,0 +1,318 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { Clock, Filter, ArrowDown, ArrowUp, Activity, AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, ChevronRight, AlertCircle } from 'lucide-react';
+
+export default function HistoryView() {
+  const [minutes, setMinutes] = useState(60);
+  const [vitals, setVitals] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [sortAsc, setSortAsc] = useState(false);
+  const [expandedRows, setExpandedRows] = useState(new Set());
+  const [showOnlyAbnormal, setShowOnlyAbnormal] = useState(false);
+
+  useEffect(() => {
+    const fetchHistory = async () => {
+      setLoading(true);
+      try {
+        const res = await fetch(`http://localhost:8000/api/v1/vitals/?minutes=${minutes}`);
+        const data = await res.json();
+        setVitals(data);
+      } catch (err) {
+        console.error(err);
+      }
+      setLoading(false);
+    };
+    fetchHistory();
+    const interval = setInterval(fetchHistory, 60000);
+    return () => clearInterval(interval);
+  }, [minutes]);
+
+  const { processedData, extremes, summaryStats } = useMemo(() => {
+    if (!vitals.length) return { processedData: [], extremes: {}, summaryStats: {} };
+
+    let maxHR = -Infinity, maxBP = -Infinity, minSpO2 = Infinity;
+    let totalHRSpikes = 0, totalSpO2Drops = 0, totalBPSpikes = 0;
+
+    vitals.forEach(v => {
+      if (v.heart_rate > maxHR) maxHR = v.heart_rate;
+      if (v.blood_pressure_systolic > maxBP) maxBP = v.blood_pressure_systolic;
+      if (v.spo2 < minSpO2) minSpO2 = v.spo2;
+      
+      if (v.heart_rate > 100 || v.heart_rate < 60) totalHRSpikes++;
+      if (v.spo2 < 94) totalSpO2Drops++;
+      if (v.blood_pressure_systolic > 130) totalBPSpikes++;
+    });
+
+    const processed = vitals.map((vital, i, arr) => {
+      let sumHR = 0, sumSpO2 = 0, sumBP = 0, count = 0;
+      let localMinHR = vital.heart_rate, localMaxHR = vital.heart_rate;
+      
+      for (let j = 1; j <= 5; j++) {
+        if (i + j < arr.length) {
+          sumHR += arr[i + j].heart_rate;
+          sumSpO2 += arr[i + j].spo2;
+          sumBP += arr[i + j].blood_pressure_systolic;
+          
+          if (arr[i+j].heart_rate < localMinHR) localMinHR = arr[i+j].heart_rate;
+          if (arr[i+j].heart_rate > localMaxHR) localMaxHR = arr[i+j].heart_rate;
+          
+          count++;
+        }
+      }
+      
+      let trend = 'stable';
+      if (count > 0) {
+        const avgHR = sumHR / count;
+        const avgSpO2 = sumSpO2 / count;
+        const avgBP = sumBP / count;
+
+        if (vital.heart_rate - avgHR > 5 || vital.blood_pressure_systolic - avgBP > 10) trend = 'increasing';
+        else if (vital.heart_rate - avgHR < -5 || vital.blood_pressure_systolic - avgBP < -10) trend = 'decreasing';
+        if (vital.spo2 - avgSpO2 < -1.5) trend = 'worsening';
+      }
+
+      // Generate dynamic summary
+      let dynamicSummary = "";
+      let eventType = "Normal";
+      
+      if (vital.alert_level === 'CRITICAL') {
+         eventType = "🔴 Critical";
+         dynamicSummary = `Critical event detected. Heart rate at ${Math.round(vital.heart_rate)} bpm and SpO2 at ${Math.round(vital.spo2)}%. Immediate attention recommended.`;
+      } else if (vital.alert_level === 'WARNING') {
+         eventType = "🟡 Warning";
+         if (vital.heart_rate > 100) {
+            eventType = "⚠️ Spike";
+            dynamicSummary = `Heart rate spike detected (${Math.round(vital.heart_rate)} bpm). Monitor for sustained tachycardia.`;
+         } else if (vital.spo2 < 94) {
+            eventType = "⚠️ Drop";
+            dynamicSummary = `Oxygen desaturation detected (${Math.round(vital.spo2)}%). Assess airway and respiratory effort.`;
+         } else {
+            dynamicSummary = `Abnormal vital pattern observed. HR: ${Math.round(vital.heart_rate)} bpm, BP: ${vital.blood_pressure_systolic} mmHg.`;
+         }
+      } else {
+         dynamicSummary = `Heart rate within normal range (${Math.round(localMinHR)}–${Math.round(localMaxHR)} bpm). No abnormal variation detected in SpO2 (${Math.round(vital.spo2)}%).`;
+      }
+
+      return { ...vital, calculatedTrend: trend, dynamicSummary, eventType };
+    });
+
+    let filtered = processed;
+    if (showOnlyAbnormal) {
+       filtered = processed.filter(r => r.alert_level !== 'NORMAL');
+    }
+
+    if (sortAsc) {
+      filtered.reverse();
+    }
+
+    return { 
+      processedData: filtered, 
+      extremes: { maxHR, maxBP, minSpO2 },
+      summaryStats: { totalHRSpikes, totalSpO2Drops, totalBPSpikes }
+    };
+  }, [vitals, sortAsc, showOnlyAbnormal]);
+
+  const toggleRow = (id) => {
+    const newExpanded = new Set(expandedRows);
+    if (newExpanded.has(id)) newExpanded.delete(id);
+    else newExpanded.add(id);
+    setExpandedRows(newExpanded);
+  };
+
+  const getStatusBadge = (level) => {
+    switch(level) {
+      case 'CRITICAL': return <span className="px-2 py-1 text-[10px] font-bold bg-red-100 text-red-700 rounded-full flex items-center gap-1 w-max"><AlertTriangle size={12}/> CRITICAL</span>;
+      case 'WARNING': return <span className="px-2 py-1 text-[10px] font-bold bg-orange-100 text-orange-700 rounded-full flex items-center gap-1 w-max"><Activity size={12}/> WARNING</span>;
+      default: return <span className="px-2 py-1 text-[10px] font-bold bg-emerald-100 text-emerald-700 rounded-full flex items-center gap-1 w-max"><CheckCircle2 size={12}/> NORMAL</span>;
+    }
+  };
+
+  const getTrendIcon = (t) => {
+    if (t === 'increasing') return <ArrowUp size={16} className="text-orange-500" />;
+    if (t === 'decreasing' || t === 'worsening') return <ArrowDown size={16} className={t === 'worsening' ? 'text-orange-500' : 'text-emerald-500'} />;
+    return <span className="text-slate-400 font-bold px-1">→</span>;
+  };
+
+  return (
+    <div className="h-full flex flex-col p-8 gap-6">
+      
+      <div className="flex items-center justify-between shrink-0">
+        <div>
+          <h2 className="text-[24px] font-serif text-[#1e1a17] tracking-tight">Vitals History</h2>
+          <p className="text-[13px] text-[#8c8273] mt-1">Full historical log with dynamic event detection.</p>
+        </div>
+        
+        <div className="flex items-center gap-4">
+          <label className="flex items-center gap-2 text-[12px] font-medium text-slate-700 cursor-pointer bg-white px-3 py-2 rounded-xl shadow-sm border border-slate-100">
+             <input 
+               type="checkbox" 
+               checked={showOnlyAbnormal}
+               onChange={(e) => setShowOnlyAbnormal(e.target.checked)}
+               className="rounded text-orange-500 focus:ring-orange-500"
+             />
+             Show Abnormal Only
+          </label>
+
+          <div className="flex items-center gap-2 bg-white px-1 py-1 rounded-full shadow-sm border border-slate-100">
+            {[15, 60, 300].map((w) => (
+               <button
+                 key={w}
+                 onClick={() => setMinutes(w)}
+                 className={`px-4 py-1.5 text-[11px] font-bold uppercase tracking-wider rounded-full transition-colors ${
+                   minutes === w ? 'bg-slate-800 text-white' : 'text-slate-500 hover:text-slate-800'
+                 }`}
+               >
+                 {w === 60 ? '1 Hour' : w === 300 ? '5 Hours' : '15 Min'}
+               </button>
+            ))}
+          </div>
+          
+          <button 
+            onClick={() => setSortAsc(!sortAsc)}
+            className="flex items-center gap-2 text-[12px] font-medium bg-white px-4 py-2 rounded-xl border border-slate-100 shadow-sm text-slate-600 hover:text-slate-900 transition-colors"
+          >
+            <Filter size={14} />
+            {sortAsc ? 'Oldest First' : 'Newest First'}
+          </button>
+        </div>
+      </div>
+
+      {!loading && vitals.length > 0 && (
+        <div className="grid grid-cols-3 gap-4 shrink-0">
+           <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-center gap-4">
+              <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center text-orange-600"><Activity size={20}/></div>
+              <div>
+                 <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Heart Rate Spikes</p>
+                 <p className="text-[18px] font-semibold text-slate-800">{summaryStats.totalHRSpikes}</p>
+              </div>
+           </div>
+           <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-center gap-4">
+              <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600"><AlertCircle size={20}/></div>
+              <div>
+                 <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Oxygen Drops</p>
+                 <p className="text-[18px] font-semibold text-slate-800">{summaryStats.totalSpO2Drops}</p>
+              </div>
+           </div>
+           <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-center gap-4">
+              <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600"><CheckCircle2 size={20}/></div>
+              <div>
+                 <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Overall Condition</p>
+                 <p className="text-[14px] font-semibold text-slate-800 mt-0.5">
+                    {summaryStats.totalHRSpikes + summaryStats.totalSpO2Drops > 5 ? 'Unstable / Needs Review' : 'Stable'}
+                 </p>
+              </div>
+           </div>
+        </div>
+      )}
+
+      <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col">
+        {loading && !vitals.length ? (
+          <div className="flex-1 flex items-center justify-center text-slate-400">Loading history...</div>
+        ) : (
+          <div className="overflow-y-auto flex-1 custom-scrollbar">
+            <table className="w-full text-left text-[13px]">
+              <thead className="sticky top-0 bg-slate-50/95 backdrop-blur z-10 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+                <tr>
+                  <th className="px-6 py-4 font-bold text-slate-400 uppercase tracking-wider text-[10px]">Timestamp</th>
+                  <th className="px-6 py-4 font-bold text-slate-400 uppercase tracking-wider text-[10px]">Event</th>
+                  <th className="px-6 py-4 font-bold text-slate-400 uppercase tracking-wider text-[10px]">Heart Rate</th>
+                  <th className="px-6 py-4 font-bold text-slate-400 uppercase tracking-wider text-[10px]">SpO₂</th>
+                  <th className="px-6 py-4 font-bold text-slate-400 uppercase tracking-wider text-[10px]">BP (Sys/Dia)</th>
+                  <th className="px-6 py-4 font-bold text-slate-400 uppercase tracking-wider text-[10px]">Status</th>
+                  <th className="px-6 py-4 font-bold text-slate-400 uppercase tracking-wider text-[10px]">Trend</th>
+                  <th className="px-6 py-4 w-10"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {processedData.map((row) => {
+                  const isExpanded = expandedRows.has(row.id);
+                  const isAbnormalRow = row.alert_level === 'CRITICAL' || row.alert_level === 'WARNING';
+                  return (
+                    <React.Fragment key={row.id}>
+                      <tr 
+                        onClick={() => toggleRow(row.id)}
+                        className={`group cursor-pointer transition-colors hover:bg-slate-50 ${
+                          isAbnormalRow 
+                            ? (row.alert_level === 'CRITICAL' ? 'bg-red-50/50 hover:bg-red-50' : 'bg-orange-50/50 hover:bg-orange-50') 
+                            : ''
+                        }`}
+                      >
+                        <td className="px-6 py-4 text-slate-500 font-medium font-mono text-[12px] whitespace-nowrap">
+                          {new Date(row.timestamp).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute:'2-digit', second:'2-digit' })}
+                        </td>
+                        <td className="px-6 py-4 font-semibold text-[12px] whitespace-nowrap">
+                           <span className={
+                              row.eventType.includes('Critical') ? 'text-red-600' :
+                              row.eventType.includes('Spike') || row.eventType.includes('Warning') || row.eventType.includes('Drop') ? 'text-orange-600' :
+                              'text-slate-400 font-normal'
+                           }>
+                              {row.eventType}
+                           </span>
+                        </td>
+                        <td className="px-6 py-4">
+                           <span className={`font-semibold ${row.heart_rate === extremes.maxHR ? 'text-red-700 bg-red-100 px-2 py-0.5 rounded ring-1 ring-red-200' : 'text-slate-800'}`}>
+                             {Math.round(row.heart_rate)}
+                           </span>
+                        </td>
+                        <td className="px-6 py-4">
+                           <span className={`font-semibold ${row.spo2 === extremes.minSpO2 ? 'text-orange-700 bg-orange-100 px-2 py-0.5 rounded ring-1 ring-orange-200' : 'text-slate-800'}`}>
+                             {Math.round(row.spo2)}%
+                           </span>
+                        </td>
+                        <td className="px-6 py-4">
+                           <span className={`font-semibold ${row.blood_pressure_systolic === extremes.maxBP ? 'text-red-700 bg-red-100 px-2 py-0.5 rounded ring-1 ring-red-200' : 'text-slate-800'}`}>
+                             {Math.round(row.blood_pressure_systolic)} / {Math.round(row.blood_pressure_diastolic)}
+                           </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                           {getStatusBadge(row.alert_level)}
+                        </td>
+                        <td className="px-6 py-4">
+                           <div className="flex items-center">
+                             {getTrendIcon(row.calculatedTrend)}
+                           </div>
+                        </td>
+                        <td className="px-6 py-4 text-slate-400">
+                          <ChevronRight size={16} className={`transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} />
+                        </td>
+                      </tr>
+                      
+                      {/* Expandable row */}
+                      <tr>
+                        <td colSpan={8} className="p-0 border-0">
+                          <div 
+                            className={`grid transition-all duration-300 ease-in-out ${isExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}
+                          >
+                            <div className={`overflow-hidden border-t ${row.alert_level === 'CRITICAL' ? 'bg-red-50/30 border-red-100' : row.alert_level === 'WARNING' ? 'bg-orange-50/30 border-orange-100' : 'bg-slate-50 border-slate-100'}`}>
+                              <div className="p-5 px-8 flex items-start gap-4">
+                                <div className="mt-0.5">
+                                   {row.alert_level === 'CRITICAL' ? <AlertTriangle className="text-red-500" size={16}/> : 
+                                    row.alert_level === 'WARNING' ? <Activity className="text-orange-500" size={16}/> : 
+                                    <CheckCircle2 className="text-emerald-500" size={16}/>}
+                                </div>
+                                <div>
+                                  <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Dynamic Clinical Insight</h4>
+                                  <p className="text-[13px] text-slate-700 leading-relaxed font-medium">
+                                    {row.dynamicSummary}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    </React.Fragment>
+                  );
+                })}
+                {processedData.length === 0 && !loading && (
+                   <tr>
+                     <td colSpan={8} className="px-6 py-12 text-center text-slate-400 font-medium">No history data found for the selected time range.</td>
+                   </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
