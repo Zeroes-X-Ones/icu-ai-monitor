@@ -12,13 +12,6 @@ import json
 from datetime import datetime, timedelta, timezone
 from fastapi.middleware.cors import CORSMiddleware
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -186,14 +179,16 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS (allow frontend)
+# CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # In production, this should be the frontend URL
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
 
 app.include_router(vitals.router, prefix="/api/v1/vitals", tags=["vitals"])
 app.include_router(analysis.router, prefix="/api/v1/analysis", tags=["analysis"])
