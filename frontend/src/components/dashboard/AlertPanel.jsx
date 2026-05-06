@@ -100,11 +100,11 @@ export default function AlertPanel() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const resAlerts = await fetch('http://localhost:8000/api/v1/vitals/alerts?limit=5');
+        const resAlerts = await fetch('https://icu-ai-monitor-d6z0.onrender.com');
         const dataAlerts = await resAlerts.json();
         setAlerts(dataAlerts);
 
-        const resAnalysis = await fetch('http://localhost:8000/api/v1/analysis/?window=15');
+        const resAnalysis = await fetch('https://icu-ai-monitor-d6z0.onrender.com');
         const dataAnalysis = await resAnalysis.json();
         setExplanation(dataAnalysis.alert_explanation || "");
       } catch (err) {
