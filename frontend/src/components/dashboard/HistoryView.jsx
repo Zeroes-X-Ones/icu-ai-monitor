@@ -28,7 +28,7 @@ export default function HistoryView() {
     const fetchHistory = async () => {
       setLoading(true);
       try {
-        const res = await fetch(`http://localhost:8000/api/v1/vitals/history?minutes=${minutes}`);
+        const res = await fetch(`https://icu-ai-monitor-d6z0.onrender.com/api/v1/vitals/history?minutes=${minutes}`);
         const data = await res.json();
         setVitals(data.history || []);
         // const res = await fetch(`http://localhost:8000/api/v1/vitals/?minutes=${minutes}`);
@@ -48,7 +48,7 @@ export default function HistoryView() {
   useEffect(() => {
     const fetchSession = async () => {
       try {
-        const res = await fetch("http://localhost:8000/api/v1/vitals/session-start");
+        const res = await fetch("https://icu-ai-monitor-d6z0.onrender.com");
         const data = await res.json();
         setSessionStart(data.start);
       } catch (err) {
