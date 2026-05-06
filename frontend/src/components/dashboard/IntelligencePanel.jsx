@@ -146,7 +146,7 @@ export default function IntelligencePanel() {
     const fetchIntelligence = async () => {
       setLoading(true);
       try {
-        const res = await fetch(`http://localhost:8000/api/v1/analysis/?window=${timeWindow}`);
+        const res = await fetch(`https://icu-ai-monitor-d6z0.onrender.com/api/v1/analysis/?window=${timeWindow}`);
         const json = await res.json();
         setAnalysis(json);
       } catch (err) {
